@@ -497,7 +497,7 @@ local LastTargetUID = nil
 local LastPlayerPosition = nil
 local PlayerVelocity = Vector3.zero
 
-local AUTO_STEAL_PROX_RADIUS = 10
+local AUTO_STEAL_PROX_RADIUS = 15
 local IsStealing = false
 local StealProgress = 0
 local CurrentStealTarget = nil

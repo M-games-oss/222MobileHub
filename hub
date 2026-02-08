@@ -1,0 +1,88 @@
+--// ================= Mobile Optimization Patch (FINAL) =================
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Only apply for touch devices (phone/tablet)
+if not UserInputService.TouchEnabled then return end
+
+--=== Remove GUI Key input for mobile ===
+if KeybindLabel then KeybindLabel.Visible = false end
+if KeybindBox then KeybindBox.Visible = false end
+
+--=== Make panel scrollable ===
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.fromScale(1,1)
+scrollFrame.Position = UDim2.fromScale(0,0)
+scrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.Parent = Panel
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0,6)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = scrollFrame
+
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0,8)
+padding.PaddingBottom = UDim.new(0,8)
+padding.PaddingLeft = UDim.new(0,8)
+padding.PaddingRight = UDim.new(0,8)
+padding.Parent = scrollFrame
+
+-- Move all existing GUI objects into scrollFrame
+for _, child in ipairs(Panel:GetChildren()) do
+    if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("Frame") then
+        child.Parent = scrollFrame
+    end
+end
+
+-- Update CanvasSize dynamically
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scrollFrame.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 8)
+end)
+
+--=== Make panel draggable by touch ===
+do
+    local dragging, dragStart, startPos
+    TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = Panel.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            Panel.Position = UDim2.fromScale(
+                math.clamp(startPos.X.Scale + delta.X / workspace.CurrentCamera.ViewportSize.X, 0, 1),
+                math.clamp(startPos.Y.Scale + delta.Y / workspace.CurrentCamera.ViewportSize.Y, 0, 1)
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+--=== Speed slider touch support ===
+local sliding = false
+SliderBack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then sliding = true end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if sliding and input.UserInputType == Enum.UserInputType.Touch then
+        local rel = math.clamp((input.Position.X - SliderBack.AbsolutePosition.X) / SliderBack.AbsoluteSize.X, 0, 1)
+        SpeedValue = math.floor(rel * 30)
+        SliderFill.Size = UDim2.new(rel,0,1,0)
+        SpeedLabel.Text = "Speed: "..SpeedValue
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then sliding = false end
+end)

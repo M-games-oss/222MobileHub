@@ -2445,6 +2445,34 @@ end)
 if LocalPlayer.Character then
     removeAnimations(LocalPlayer.Character)
 end
+-- ================= REMOVE PLAYER TEXTURES =================
+local function removeTextures(character)
+    for _, obj in ipairs(character:GetDescendants()) do
+        if obj:IsA("Shirt") or obj:IsA("Pants") or obj:IsA("ShirtGraphic") then
+            obj:Destroy()
+        elseif obj:IsA("SpecialMesh") then
+            obj.TextureId = ""
+        elseif obj:IsA("Decal") or obj:IsA("Texture") then
+            obj:Destroy()
+        elseif obj:IsA("MeshPart") then
+            obj.TextureID = ""
+        end
+    end
+end
+
+local function processPlayer(plr)
+    if plr.Character then removeTextures(plr.Character) end
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        removeTextures(char)
+    end)
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    processPlayer(plr)
+end
+
+Players.PlayerAdded:Connect(processPlayer)
 
 -- ================= MOBILE OPTIMIZATION =================
 if not UserInputService.TouchEnabled then return end

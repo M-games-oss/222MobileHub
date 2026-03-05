@@ -1380,6 +1380,12 @@ AutoDuelBtn.MouseButton1Click:Connect(function()
         FloatingDuelBtn_ref.BackgroundColor3 = AutoDuelEnabled and Color3.fromRGB(50, 180, 100) or Color3.fromRGB(25, 30, 35)
     end
     if AutoDuelEnabled then
+        if FollowEnabled then
+            FollowEnabled = false
+            UpdateButtonState(FollowBtn, false, "Follow Player [ON]", "Follow Player [OFF]")
+            if FloatingFollowBtn_ref then FloatingFollowBtn_ref.BackgroundColor3 = Color3.fromRGB(25, 30, 35) end
+            stopFollowing()
+        end
         MobileAntiRagdollEnabled = false
         UpdateButtonState(AntiRagdollBtn, false, "Anti Ragdoll [ON]", "Anti Ragdoll [OFF]")
         local char = LocalPlayer.Character
@@ -1829,7 +1835,18 @@ FollowBtn.MouseButton1Click:Connect(function()
     if FloatingFollowBtn_ref then
         FloatingFollowBtn_ref.BackgroundColor3 = FollowEnabled and Color3.fromRGB(50, 180, 100) or Color3.fromRGB(25, 30, 35)
     end
-    if FollowEnabled then startFollowing() else stopFollowing() end
+    if FollowEnabled then
+        if AutoDuelEnabled then
+            AutoDuelEnabled = false
+            UpdateButtonState(AutoDuelBtn, false, "Auto Duel [ON]", "Auto Duel [OFF]")
+            if FloatingDuelBtn_ref then FloatingDuelBtn_ref.BackgroundColor3 = Color3.fromRGB(25, 30, 35) end
+            stopAllPathfinding()
+            resetAutoDuelState()
+        end
+        startFollowing()
+    else
+        stopFollowing()
+    end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
@@ -2240,6 +2257,12 @@ floatDuelBtn.MouseButton1Click:Connect(function()
     UpdateButtonState(AutoDuelBtn, AutoDuelEnabled, "Auto Duel [ON]", "Auto Duel [OFF]")
     floatDuelBtn.BackgroundColor3 = AutoDuelEnabled and Color3.fromRGB(50, 180, 100) or Color3.fromRGB(25, 30, 35)
     if AutoDuelEnabled then
+        if FollowEnabled then
+            FollowEnabled = false
+            UpdateButtonState(FollowBtn, false, "Follow Player [ON]", "Follow Player [OFF]")
+            if FloatingFollowBtn_ref then FloatingFollowBtn_ref.BackgroundColor3 = Color3.fromRGB(25, 30, 35) end
+            stopFollowing()
+        end
         MobileAntiRagdollEnabled = false
         UpdateButtonState(AntiRagdollBtn, false, "Anti Ragdoll [ON]", "Anti Ragdoll [OFF]")
         local char = LocalPlayer.Character
@@ -2307,7 +2330,6 @@ floatDropBtn.MouseButton1Click:Connect(function()
         floatDropBtn.BackgroundColor3 = Color3.fromRGB(25, 30, 35)
     end)
 end)
-
 
 -- ================= APPLY SAVED CONFIG =================
 task.spawn(function()
@@ -2391,27 +2413,7 @@ task.spawn(function()
 
     print("[222Hub] Config loaded successfully!")
 end)
--- ================= REMOVE PLAYER ANIMATIONS =================
-local function removeAnimations(character)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local animator = humanoid and humanoid:FindFirstChild("Animator")
-    if animator then
-        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-            track:Stop(0)
-        end
-    end
-    local animate = character:FindFirstChild("Animate")
-    if animate then animate:Destroy() end
-end
 
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    removeAnimations(char)
-end)
-
-if LocalPlayer.Character then
-    removeAnimations(LocalPlayer.Character)
-end
 -- ================= MOBILE OPTIMIZATION =================
 if not UserInputService.TouchEnabled then return end
 

@@ -2424,6 +2424,27 @@ task.spawn(function()
 
     print("[222Hub] Config loaded successfully!")
 end)
+-- ================= REMOVE PLAYER ANIMATIONS =================
+local function removeAnimations(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local animator = humanoid and humanoid:FindFirstChild("Animator")
+    if animator then
+        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+            track:Stop(0)
+        end
+    end
+    local animate = character:FindFirstChild("Animate")
+    if animate then animate:Destroy() end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    removeAnimations(char)
+end)
+
+if LocalPlayer.Character then
+    removeAnimations(LocalPlayer.Character)
+end
 
 -- ================= MOBILE OPTIMIZATION =================
 if not UserInputService.TouchEnabled then return end

@@ -2279,6 +2279,27 @@ floatDuelBtn.MouseButton1Click:Connect(function()
     end
     LiveCfg.AntiRagdoll = MobileAntiRagdollEnabled
 end)
+            FollowEnabled = false
+            UpdateButtonState(FollowBtn, false, "Follow Player [ON]", "Follow Player [OFF]")
+            if FloatingFollowBtn_ref then FloatingFollowBtn_ref.BackgroundColor3 = Color3.fromRGB(25, 30, 35) end
+            stopFollowing()
+        end
+        MobileAntiRagdollEnabled = false
+        UpdateButtonState(AntiRagdollBtn, false, "Anti Ragdoll [ON]", "Anti Ragdoll [OFF]")
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = hum.MaxHealth end
+        end
+        resetAutoDuelState()
+    else
+        stopAllPathfinding()
+        resetAutoDuelState()
+        MobileAntiRagdollEnabled = true
+        UpdateButtonState(AntiRagdollBtn, true, "Anti Ragdoll [ON]", "Anti Ragdoll [OFF]")
+    end
+    LiveCfg.AntiRagdoll = MobileAntiRagdollEnabled
+end)
 
 RunService.Heartbeat:Connect(function()
     floatDuelBtn.BackgroundColor3 = AutoDuelEnabled and Color3.fromRGB(50, 180, 100) or Color3.fromRGB(25, 30, 35)
@@ -2317,7 +2338,18 @@ floatFollowBtn.MouseButton1Click:Connect(function()
     FollowEnabled = not FollowEnabled
     UpdateButtonState(FollowBtn, FollowEnabled, "Follow Player [ON]", "Follow Player [OFF]")
     floatFollowBtn.BackgroundColor3 = FollowEnabled and Color3.fromRGB(50, 180, 100) or Color3.fromRGB(25, 30, 35)
-    if FollowEnabled then startFollowing() else stopFollowing() end
+    if FollowEnabled then
+        if AutoDuelEnabled then
+            AutoDuelEnabled = false
+            UpdateButtonState(AutoDuelBtn, false, "Auto Duel [ON]", "Auto Duel [OFF]")
+            if FloatingDuelBtn_ref then FloatingDuelBtn_ref.BackgroundColor3 = Color3.fromRGB(25, 30, 35) end
+            stopAllPathfinding()
+            resetAutoDuelState()
+        end
+        startFollowing()
+    else
+        stopFollowing()
+    end
 end)
 
 -- Drop Animal float button

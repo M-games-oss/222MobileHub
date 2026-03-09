@@ -719,92 +719,100 @@ end)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AnimalsData = require(ReplicatedStorage:WaitForChild("Datas"):WaitForChild("Animals"))
 
---// ================= AUTO STEAL (Instant Steal logic) =================
+-- ================= AUTO GRAB (Orrxl4 nearest-steal logic) =================
+-- Finds the nearest ProximityPrompt with ActionText == "Steal" within grabRadius,
+-- sets HoldDuration = 0, RequiresLineOfSight = false, fires it every heartbeat.
 do
-local ProximityPromptService = game:GetService("ProximityPromptService")
+    local grabRadius = 50
+    local autoGrabEnabled = false
+    local grabPrompts = {}
+    local grabConnections = {}
 
-local REAPPLY_INTERVAL = 0.5
-local isStealEnabled = false
-local isPrompts = {}
-local isConnections = {}
-local isLastReapply = 0
-
-local function isAddConnection(conn)
-    table.insert(isConnections, conn)
-end
-
-local function isMakeInstant(prompt)
-    if prompt:IsA("ProximityPrompt") and prompt.Parent then
-        prompt.HoldDuration = 0
-        prompt.RequiresLineOfSight = true
-        prompt.Enabled = true
+    local function grabAddConnection(conn)
+        table.insert(grabConnections, conn)
     end
-end
 
-local function isAddPrompt(obj)
-    if obj:IsA("ProximityPrompt") then
-        table.insert(isPrompts, obj)
-        if isStealEnabled then isMakeInstant(obj) end
-    end
-end
-
-local function isRemovePrompt(obj)
-    for i = #isPrompts, 1, -1 do
-        if isPrompts[i] == obj then table.remove(isPrompts, i) end
-    end
-end
-
-coroutine.wrap(function()
-    for _, target in {workspace, ReplicatedStorage} do
-        for _, obj in ipairs(target:GetDescendants()) do
-            isAddPrompt(obj)
+    local function grabAddPrompt(obj)
+        if obj:IsA("ProximityPrompt") then
+            table.insert(grabPrompts, obj)
         end
     end
-end)()
 
-isAddConnection(workspace.DescendantAdded:Connect(isAddPrompt))
-isAddConnection(workspace.DescendantRemoving:Connect(isRemovePrompt))
-isAddConnection(ReplicatedStorage.DescendantAdded:Connect(isAddPrompt))
-isAddConnection(ReplicatedStorage.DescendantRemoving:Connect(isRemovePrompt))
+    local function grabRemovePrompt(obj)
+        for i = #grabPrompts, 1, -1 do
+            if grabPrompts[i] == obj then table.remove(grabPrompts, i) end
+        end
+    end
 
-isAddConnection(RunService.Heartbeat:Connect(function()
-    if not isStealEnabled then return end
-    local now = tick()
-    if now - isLastReapply >= REAPPLY_INTERVAL then
-        isLastReapply = now
-        for i = #isPrompts, 1, -1 do
-            local p = isPrompts[i]
-            if p.Parent then
-                isMakeInstant(p)
-            else
-                table.remove(isPrompts, i)
+    local function findNearestSteal(rootPos)
+        local nearest, dist = nil, math.huge
+        for _, prompt in ipairs(grabPrompts) do
+            if prompt and prompt.Parent and prompt.Enabled and prompt.ActionText == "Steal" then
+                local part = prompt.Parent:IsA("BasePart") and prompt.Parent
+                    or prompt:FindFirstAncestorWhichIsA("BasePart")
+                if part then
+                    local d = (part.Position - rootPos).Magnitude
+                    if d < dist and d <= grabRadius then
+                        nearest = prompt
+                        dist = d
+                    end
+                end
             end
         end
+        return nearest
     end
-end))
 
-pcall(function()
-    isAddConnection(ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
-        if isStealEnabled then
-            isMakeInstant(prompt)
-            pcall(function()
-                fireproximityprompt(prompt, math.huge)
-            end)
+    -- Seed existing prompts
+    coroutine.wrap(function()
+        for _, target in {workspace, ReplicatedStorage} do
+            for _, obj in ipairs(target:GetDescendants()) do
+                grabAddPrompt(obj)
+            end
+        end
+    end)()
+
+    grabAddConnection(workspace.DescendantAdded:Connect(grabAddPrompt))
+    grabAddConnection(workspace.DescendantRemoving:Connect(grabRemovePrompt))
+    grabAddConnection(ReplicatedStorage.DescendantAdded:Connect(grabAddPrompt))
+    grabAddConnection(ReplicatedStorage.DescendantRemoving:Connect(grabRemovePrompt))
+
+    -- Heartbeat: find nearest steal prompt in range and fire immediately
+    grabAddConnection(RunService.Heartbeat:Connect(function()
+        if not autoGrabEnabled then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        -- Clean dead prompts
+        for i = #grabPrompts, 1, -1 do
+            if not grabPrompts[i] or not grabPrompts[i].Parent then
+                table.remove(grabPrompts, i)
+            end
+        end
+
+        local prompt = findNearestSteal(root.Position)
+        if prompt then
+            prompt.HoldDuration = 0
+            prompt.RequiresLineOfSight = false
+            prompt.Enabled = true
+            pcall(function() fireproximityprompt(prompt) end)
         end
     end))
-end)
 
-AutoGrabBtn.MouseButton1Click:Connect(function()
-    isStealEnabled = not isStealEnabled
-    UpdateButtonState(AutoGrabBtn, isStealEnabled, "Insta Grab [ON]", "Insta Grab [OFF]")
-    if isStealEnabled then
-        for _, p in ipairs(isPrompts) do
-            if p and p.Parent then isMakeInstant(p) end
-        end
+    AutoGrabBtn.MouseButton1Click:Connect(function()
+        autoGrabEnabled = not autoGrabEnabled
+        UpdateButtonState(AutoGrabBtn, autoGrabEnabled, "Insta Grab [ON]", "Insta Grab [OFF]")
+        LiveCfg.AutoSteal = autoGrabEnabled
+    end)
+
+    -- Expose setter for config load (needed because autoGrabEnabled is upvalue inside do-block)
+    _G._222Hub_autoGrabEnabled_set = function(v)
+        autoGrabEnabled = v
+        UpdateButtonState(AutoGrabBtn, autoGrabEnabled, "Insta Grab [ON]", "Insta Grab [OFF]")
+        LiveCfg.AutoSteal = autoGrabEnabled
     end
-    LiveCfg.AutoSteal = isStealEnabled
-end)
-end -- Auto Steal
+end -- Auto Grab
 
 -- ================= AUTO BAT =================
 do
@@ -1048,14 +1056,18 @@ end)
 if Player.Character then InitMobileAntiRagdoll(Player.Character) end
 
 -- ================= AUTO DUEL =================
+-- Changes applied:
+--   1. No isHoldingBrainrot gating — always go to enemy podium, return home immediately after arrival.
+--   2. Interrupted path (success=false) sets isDueling=false and returningHome=false so the
+--      heartbeat loop retries the enemy podium on the very next tick.
+--   3. Unstuck detection: if position barely moves for 2s, nudge sideways and recompute path.
+--   4. Tighter pathfinding params (AgentRadius=2, WaypointSpacing=4) to reduce wall clipping.
 local PODIUM_10_WALK_SPEED = 59
 local RETURN_SPEED = 30
 local isDueling = false
-local carryingBrainrot = false
 local returningHome = false
 local currentDuelTarget = nil
 local activePathConnection = nil
-local lastKnownPosition = nil
 
 local function stopAllPathfinding()
     if activePathConnection then
@@ -1072,10 +1084,8 @@ end
 local function resetAutoDuelState()
     stopAllPathfinding()
     isDueling = false
-    carryingBrainrot = false
     returningHome = false
     currentDuelTarget = nil
-    lastKnownPosition = nil
 end
 
 do
@@ -1119,26 +1129,6 @@ local function protectHealth(character)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 end
 
-local function isHoldingBrainrot()
-    local char = LocalPlayer.Character
-    if not char then return false end
-    for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("Tool") and (child.Name:lower():find("brainrot") or child.Name:lower():find("brain")) then
-            return true
-        end
-    end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        local animator = humanoid:FindFirstChild("Animator")
-        if animator then
-            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                if track.Animation.AnimationId == "rbxassetid://71186871415348" then return true end
-            end
-        end
-    end
-    return false
-end
-
 local function tweenToPosition(targetPos, customSpeed, onComplete)
     if typeof(targetPos) ~= "Vector3" then
         if onComplete then onComplete(false) end
@@ -1160,25 +1150,44 @@ local function tweenToPosition(targetPos, customSpeed, onComplete)
         if onComplete then onComplete(false) end
         return false
     end
+
     local PathfindingService = game:GetService("PathfindingService")
-    local path = PathfindingService:CreatePath({
-        AgentRadius = 3, AgentHeight = 6,
-        AgentCanJump = true, AgentCanClimb = false, WaypointSpacing = 8
-    })
-    local success, errorMsg = pcall(function() path:ComputeAsync(hrp.Position, targetPos) end)
-    if not success or path.Status ~= Enum.PathStatus.Success then
+
+    -- Inner helper: compute a fresh path and return waypoints, or nil on failure
+    local function computePath(fromPos)
+        local p = PathfindingService:CreatePath({
+            AgentRadius = 2, AgentHeight = 6,
+            AgentCanJump = true, AgentCanClimb = false, WaypointSpacing = 4
+        })
+        local ok = pcall(function() p:ComputeAsync(fromPos, targetPos) end)
+        if ok and p.Status == Enum.PathStatus.Success then
+            return p:GetWaypoints()
+        end
+        return nil
+    end
+
+    local waypoints = computePath(hrp.Position)
+    if not waypoints then
         if onComplete then onComplete(false) end
         return false
     end
-    local waypoints = path:GetWaypoints()
+
     local currentWaypointIndex = 1
     local startTime = tick()
+
+    -- Unstuck tracking
+    local lastStuckCheckPos  = hrp.Position
+    local lastStuckCheckTime = tick()
+    local nudgeCount = 0
+
     if activePathConnection then
         activePathConnection:Disconnect()
         activePathConnection = nil
     end
+
     local connection
     connection = RunService.Heartbeat:Connect(function()
+        -- Stop entirely if duel was disabled
         if not AutoDuelEnabled then
             connection:Disconnect()
             if activePathConnection == connection then activePathConnection = nil end
@@ -1201,12 +1210,18 @@ local function tweenToPosition(targetPos, customSpeed, onComplete)
             if onComplete then onComplete(false) end
             return
         end
+
+        -- Keep health up while travelling
         if AutoDuelEnabled and currentHum.Health <= 0 then currentHum.Health = currentHum.MaxHealth end
+
+        -- Clamp extreme downward velocity
         if currentHrp.AssemblyLinearVelocity.Y < -80 then
             currentHrp.AssemblyLinearVelocity = Vector3.new(
                 currentHrp.AssemblyLinearVelocity.X * 0.5, -40,
                 currentHrp.AssemblyLinearVelocity.Z * 0.5)
         end
+
+        -- Global timeout
         if tick() - startTime > 60 then
             connection:Disconnect()
             if activePathConnection == connection then activePathConnection = nil end
@@ -1214,6 +1229,30 @@ local function tweenToPosition(targetPos, customSpeed, onComplete)
             if onComplete then onComplete(false) end
             return
         end
+
+        -- ── UNSTUCK: every 2 s check if we barely moved ──
+        local now = tick()
+        if now - lastStuckCheckTime >= 2 then
+            local moved = (currentHrp.Position - lastStuckCheckPos).Magnitude
+            if moved < 2 and currentWaypointIndex <= #waypoints then
+                nudgeCount = nudgeCount + 1
+                -- Alternate nudge direction each attempt
+                local nudge = (nudgeCount % 2 == 0)
+                    and Vector3.new(3, 0, 0)
+                    or  Vector3.new(-3, 0, 0)
+                currentHrp.CFrame = currentHrp.CFrame + nudge
+                -- Recompute path from nudged position
+                local newWaypoints = computePath(currentHrp.Position)
+                if newWaypoints then
+                    waypoints = newWaypoints
+                    currentWaypointIndex = 1
+                end
+            end
+            lastStuckCheckPos  = currentHrp.Position
+            lastStuckCheckTime = now
+        end
+
+        -- Finished all waypoints → success
         if currentWaypointIndex > #waypoints then
             currentHrp.AssemblyLinearVelocity = Vector3.zero
             connection:Disconnect()
@@ -1221,6 +1260,7 @@ local function tweenToPosition(targetPos, customSpeed, onComplete)
             if onComplete then onComplete(true) end
             return
         end
+
         local targetWaypoint = waypoints[currentWaypointIndex]
         if targetWaypoint.Action == Enum.PathWaypointAction.Jump then
             local heightDiff = targetWaypoint.Position.Y - currentHrp.Position.Y
@@ -1228,12 +1268,16 @@ local function tweenToPosition(targetPos, customSpeed, onComplete)
                 currentHum:ChangeState(Enum.HumanoidStateType.Jumping)
             end
         end
-        local horizontalDist = (Vector3.new(currentHrp.Position.X, 0, currentHrp.Position.Z) -
-            Vector3.new(targetWaypoint.Position.X, 0, targetWaypoint.Position.Z)).Magnitude
+
+        local horizontalDist = (
+            Vector3.new(currentHrp.Position.X, 0, currentHrp.Position.Z) -
+            Vector3.new(targetWaypoint.Position.X, 0, targetWaypoint.Position.Z)
+        ).Magnitude
         if horizontalDist < 3 then
             currentWaypointIndex = currentWaypointIndex + 1
             return
         end
+
         local direction = (targetWaypoint.Position - currentHrp.Position) * Vector3.new(1, 0, 1)
         if direction.Magnitude > 0 then
             direction = direction.Unit
@@ -1243,6 +1287,7 @@ local function tweenToPosition(targetPos, customSpeed, onComplete)
                 direction.Z * moveSpeed)
         end
     end)
+
     activePathConnection = connection
     return true
 end
@@ -1293,42 +1338,43 @@ local function getNearestEnemyPlot()
     return nearest
 end
 
-local lastWasHolding = false
-
+-- ── Main duel heartbeat loop ──
+-- Phase A (returningHome=false): walk to nearest enemy podium.
+--   • success  → attempt steal prompts, then immediately queue return home.
+--   • failure  → isDueling=false, returningHome=false → next tick retries enemy podium.
+-- Phase B (returningHome=true): walk back to own cash pad.
+--   • success/failure → reset flags, next tick starts Phase A again.
 RunService.Heartbeat:Connect(function()
     if not AutoDuelEnabled then return end
+
+    -- Always keep health up
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum and hum.Health <= 0 then hum.Health = hum.MaxHealth end
     end
-    local holding = isHoldingBrainrot()
-    if holding ~= lastWasHolding then
-        lastWasHolding = holding
-        stopAllPathfinding()
-        isDueling = false
-        carryingBrainrot = holding
-        returningHome = holding
-        currentDuelTarget = nil
-    end
+
     if isDueling then return end
-    if holding then
+
+    if returningHome then
+        -- Phase B: return to own cash pad
         local cashPadPos = getMyPlotCashPad()
-        if not cashPadPos then return end
+        if not cashPadPos then
+            -- Can't find cash pad; reset so we retry enemy podium
+            returningHome = false
+            return
+        end
         isDueling = true
         task.spawn(function()
             tweenToPosition(cashPadPos, RETURN_SPEED, function(success)
                 stopAllPathfinding()
                 isDueling = false
-                if success then
-                    carryingBrainrot = false
-                    returningHome = false
-                    currentDuelTarget = nil
-                    lastWasHolding = false
-                end
+                returningHome = false   -- Either way, go back to Phase A
+                currentDuelTarget = nil
             end)
         end)
     else
+        -- Phase A: go to nearest enemy podium
         local nearestPlot = getNearestEnemyPlot()
         if not nearestPlot then return end
         isDueling = true
@@ -1340,22 +1386,24 @@ RunService.Heartbeat:Connect(function()
                 isDueling = false
                 currentDuelTarget = nil
                 if success then
-                    local isPrompts = _G._222Hub_isPrompts
-                    local isMakeInstant = _G._222Hub_isMakeInstant
-                    if isPrompts and isMakeInstant then
-                        for _, p in ipairs(isPrompts) do
-                            if p.Parent and (p.ActionText or ""):lower():find("steal") then
+                    -- Attempt to fire any nearby steal prompts
+                    local grabPromptsList = _G._222Hub_grabPrompts
+                    if grabPromptsList then
+                        for _, p in ipairs(grabPromptsList) do
+                            if p and p.Parent and (p.ActionText or ""):lower():find("steal") then
                                 local obj = p.Parent
                                 while obj do
                                     if obj:IsA("Model") then
                                         if (obj:GetPivot().Position - targetPos).Magnitude <= 15 then
-                                            isMakeInstant(p)
+                                            p.HoldDuration = 0
+                                            p.RequiresLineOfSight = false
                                             pcall(function() fireproximityprompt(p) end)
                                         end
                                         break
                                     elseif obj:IsA("BasePart") then
                                         if (obj.Position - targetPos).Magnitude <= 15 then
-                                            isMakeInstant(p)
+                                            p.HoldDuration = 0
+                                            p.RequiresLineOfSight = false
                                             pcall(function() fireproximityprompt(p) end)
                                         end
                                         break
@@ -1365,9 +1413,11 @@ RunService.Heartbeat:Connect(function()
                             end
                         end
                     end
-                    task.wait(5)
-                    isDueling = false
+                    -- Immediately queue return home (no waiting for animal pickup)
+                    returningHome = true
                 end
+                -- If success=false, both isDueling and returningHome are false →
+                -- next heartbeat tick will retry Phase A automatically.
             end)
         end)
     end
@@ -1402,7 +1452,7 @@ AutoDuelBtn.MouseButton1Click:Connect(function()
     end
     LiveCfg.AntiRagdoll = MobileAntiRagdollEnabled
 end)
-end
+end -- Auto Duel do-block
 
 local FloatingDuelBtn_ref = nil
 local FloatingFollowBtn_ref = nil
@@ -2399,8 +2449,10 @@ task.spawn(function()
         LiveCfg.AutoBatEnabled = true
     end
     if saved.AutoSteal == true then
-        isStealEnabled = true
-        UpdateButtonState(AutoGrabBtn, true, "Insta Grab [ON]", "Insta Grab [OFF]")
+        -- Route through the exposed setter since autoGrabEnabled is a do-block upvalue
+        if _G._222Hub_autoGrabEnabled_set then
+            _G._222Hub_autoGrabEnabled_set(true)
+        end
         LiveCfg.AutoSteal = true
     end
     if saved.AntiHitEnabled == true then
@@ -2424,6 +2476,7 @@ task.spawn(function()
 
     print("[222Hub] Config loaded successfully!")
 end)
+
 -- ================= REMOVE PLAYER ANIMATIONS =================
 local function removeAnimations(character)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -2445,6 +2498,7 @@ end)
 if LocalPlayer.Character then
     removeAnimations(LocalPlayer.Character)
 end
+
 -- ================= REMOVE PLAYER TEXTURES =================
 local function removeTextures(character)
     for _, obj in ipairs(character:GetDescendants()) do

@@ -1062,8 +1062,8 @@ if Player.Character then InitMobileAntiRagdoll(Player.Character) end
 --      heartbeat loop retries the enemy podium on the very next tick.
 --   3. Unstuck detection: if position barely moves for 2s, nudge sideways and recompute path.
 --   4. Tighter pathfinding params (AgentRadius=2, WaypointSpacing=4) to reduce wall clipping.
-local PODIUM_10_WALK_SPEED = 59
-local RETURN_SPEED = 30
+local PODIUM_10_WALK_SPEED = 58
+local RETURN_SPEED = 29
 local isDueling = false
 local returningHome = false
 local currentDuelTarget = nil
